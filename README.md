@@ -1,18 +1,18 @@
 # India Regulatory Tracker
 
-A Render-ready prototype for collecting Indian regulatory/public-sector updates.
+Render-ready prototype for collecting Indian regulatory/public-sector updates.
 
-## Current MVP
+## MVP
 
 - Flask web application
 - SQLite persistence
-- RBI source prototype
+- RBI scraper with publication content extraction
+- Optional Gemini AI analysis
 - JSON API
-- Manual RBI scrape endpoint
 - Render deployment configuration
 - Persistent Render disk for SQLite data
 
-## Run locally
+## Local run
 
 ```bash
 python -m venv .venv
@@ -23,20 +23,28 @@ python app.py
 
 Open http://localhost:5000.
 
-Populate RBI data:
+Scrape RBI:
 
 ```bash
 curl -X POST http://localhost:5000/api/scrape/rbi
 ```
 
-## API
+Analyze a document:
 
-- `GET /health`
-- `GET /api/documents?limit=50`
-- `POST /api/scrape/rbi`
+```bash
+curl -X POST http://localhost:5000/api/analyze/1
+```
+
+## Environment variables
+
+- `DATABASE_PATH` — SQLite path; Render uses `/var/data/regulatory.db`
+- `GEMINI_API_KEY` — optional Gemini API key
+- `GEMINI_MODEL` — optional model name, defaults to `gemini-2.5-flash`
+
+Without an AI key, the tracker still works; AI enrichment returns a skipped response.
 
 ## Render
 
-The included `render.yaml` creates a Python web service using Gunicorn and a 1 GB persistent disk mounted at `/var/data`.
+The included `render.yaml` creates a Python web service using Gunicorn and a 1 GB persistent disk.
 
-For the next iteration, the project can add scheduled scraping, source-specific parsers, deduplication improvements, document/PDF extraction, and optional Gemini/Sarvam summarization.
+Next: scheduled ingestion, automatic AI enrichment, better source-specific parsers, and additional sources such as SEBI, MCA and ministries.
