@@ -19,6 +19,7 @@ def extract_date(text):
     patterns = [
         r"\b(\d{1,2}[/-]\d{1,2}[/-]\d{4})\b",
         r"\b(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})\b",
+        r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
