@@ -51,3 +51,14 @@ You can also override the provider per analysis request with `?provider=gemini` 
 The included `render.yaml` creates a Python web service using Gunicorn and a 1 GB persistent disk.
 
 Next: scheduled ingestion, automatic AI enrichment, better source-specific parsers, and additional sources such as SEBI, MCA and ministries.
+
+
+## Automatic ingestion
+
+The Render web service includes a lightweight background scheduler. By default it checks RBI every 30 minutes and analyzes newly collected documents using the configured AI provider.
+
+Configure with:
+- `ENABLE_SCHEDULER=true|false`
+- `SCRAPE_INTERVAL_SECONDS=1800`
+
+For a production-scale deployment, this can later be moved to a dedicated job queue/database architecture.
