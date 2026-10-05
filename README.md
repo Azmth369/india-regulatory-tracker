@@ -1,16 +1,21 @@
 # India Regulatory Tracker
 
-Render-ready prototype for collecting Indian regulatory/public-sector updates.
+Personal-use regulatory intelligence terminal for tracking Indian government and financial-regulator publications.
 
-## MVP
+## Current build
 
-- Flask web application
-- Supabase PostgreSQL persistence (SQLite fallback for local development)
-- RBI scraper with publication content extraction
-- Optional Gemini AI analysis
-- JSON API
+- Flask web dashboard
+- Supabase PostgreSQL persistence with SQLite fallback for local development
+- RBI press-release ingestion with full publication-text extraction
+- Correct RBI link filtering using actual press-release IDs
+- Automatic refresh every 30 minutes
+- Gemini and Sarvam analysis
+- Defensive AI response parsing and useful API errors
+- Per-document AI Q&A
+- Search and importance/category filters
+- Extracted-source text viewer
+- Optional HTTP Basic authentication for personal use
 - Render deployment configuration
-- Supabase database for persistent regulatory data
 
 ## Local run
 
@@ -21,56 +26,66 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open http://localhost:5000.
-
-Scrape RBI:
-
-```bash
-curl -X POST http://localhost:5000/api/scrape/rbi
-```
-
-Analyze a document:
-
-```bash
-curl -X POST http://localhost:5000/api/analyze/1
-```
+Open `http://localhost:5000`.
 
 ## Environment variables
 
-- `DATABASE_PATH` — SQLite path; Render uses `/var/data/regulatory.db`
-- `AI_PROVIDER` — `none`, `gemini`, or `sarvam`; defaults to `none`
-- `GEMINI_API_KEY` — optional Gemini API key
-- `GEMINI_MODEL` — optional model name, defaults to `gemini-2.5-flash`
-- `SARVAM_API_KEY` — optional Sarvam API key
-- `SARVAM_MODEL` — optional model name, defaults to `sarvam-105b`
+### Database
 
-You can also override the provider per analysis request with `?provider=gemini` or `?provider=sarvam`. Without a configured key, the selected provider returns a skipped/error response rather than exposing secrets.
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only secret
+- `SUPABASE_SECRET_KEY` — optional alternative server-only Supabase key
+- `DATABASE_PATH` — SQLite path used only when Supabase variables are absent
 
-## Render
+### AI
 
-The included `render.yaml` creates a Python web service using Gunicorn and a 1 GB persistent disk.
+- `AI_PROVIDER` — `none`, `gemini`, or `sarvam`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` — defaults to `gemini-2.5-flash`
+- `SARVAM_API_KEY`
+- `SARVAM_MODEL` — defaults to `sarvam-105b`
 
-Next: scheduled ingestion, automatic AI enrichment, better source-specific parsers, and additional sources such as SEBI, MCA and ministries.
+The provider can also be selected per analysis/Q&A request.
 
+### Scheduler
 
-## Automatic ingestion
-
-The Render web service includes a lightweight background scheduler. By default it checks RBI every 30 minutes and analyzes newly collected documents using the configured AI provider.
-
-Configure with:
 - `ENABLE_SCHEDULER=true|false`
 - `SCRAPE_INTERVAL_SECONDS=1800`
 
-For a production-scale deployment, this can later be moved to a dedicated job queue/database architecture.
+### Personal-use authentication
 
+Set both variables to protect the Render app with HTTP Basic Auth:
+
+- `TRACKER_USERNAME`
+- `TRACKER_PASSWORD`
+
+If they are not set, authentication is disabled. The `/health` endpoint remains public for Render health checks.
+
+## Render
+
+The included `render.yaml` runs Gunicorn with one worker and multiple threads. One worker is intentional because the current MVP contains an in-process scheduler; this prevents multiple scheduler instances.
+
+For a larger deployment, the scheduler should be moved to a dedicated background job/worker.
 
 ## Supabase
 
 The production app stores regulatory documents and AI Q&A history in the connected Supabase project.
 
-Render requires these environment variables:
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY` — server-only secret; never expose this in browser code
+Tables:
 
-The Supabase schema contains `documents` and `ai_questions`. Row Level Security is enabled, while the Render backend uses the server-only service-role key for database operations.
+- `documents`
+- `ai_questions`
 
+Row Level Security is enabled. The browser does not connect directly to Supabase; database access is performed server-side.
+
+## Roadmap
+
+1. Harden RBI source-specific ingestion
+2. Add SEBI
+3. Add MCA
+4. Add Union ministries
+5. Add source/category-specific importance rules
+6. Add historical search and date ranges
+7. Add company/sector impact mapping
+8. Add watchlists and alerts
+9. Move scheduled jobs to a dedicated worker
