@@ -93,8 +93,5 @@ def scrape_rbi(limit=50):
 
 
 def save_items(items, db_path=None):
-    from db import cleanup_rbi_noise, upsert_documents
-
-    saved = upsert_documents(items)
-    cleanup_rbi_noise()
-    return saved
+    from db import upsert_documents
+    return upsert_documents(items)
