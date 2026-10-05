@@ -38,10 +38,13 @@ curl -X POST http://localhost:5000/api/analyze/1
 ## Environment variables
 
 - `DATABASE_PATH` — SQLite path; Render uses `/var/data/regulatory.db`
+- `AI_PROVIDER` — `none`, `gemini`, or `sarvam`; defaults to `none`
 - `GEMINI_API_KEY` — optional Gemini API key
 - `GEMINI_MODEL` — optional model name, defaults to `gemini-2.5-flash`
+- `SARVAM_API_KEY` — optional Sarvam API key
+- `SARVAM_MODEL` — optional model name, defaults to `sarvam-105b`
 
-Without an AI key, the tracker still works; AI enrichment returns a skipped response.
+You can also override the provider per analysis request with `?provider=gemini` or `?provider=sarvam`. Without a configured key, the selected provider returns a skipped/error response rather than exposing secrets.
 
 ## Render
 
