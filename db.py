@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import requests
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "") or os.getenv("SUPABASE_SECRET_KEY", "")
 USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
 DB_PATH = os.getenv("DATABASE_PATH", "regulatory.db")
 
@@ -41,6 +41,7 @@ def _sqlite():
 def init_db():
     if USE_SUPABASE:
         return
+
     conn = _sqlite()
     conn.execute("""CREATE TABLE IF NOT EXISTS documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, title TEXT NOT NULL,
@@ -64,6 +65,7 @@ def list_documents(limit=100):
             "order": "created_at.desc",
             "limit": limit,
         })
+
     conn = _sqlite()
     rows = conn.execute("""SELECT id,source,title,url,published_at,summary,category,importance,
         affected_sectors,market_impact,action_required,ai_provider,analyzed_at,fetched_at
@@ -76,6 +78,7 @@ def get_document(document_id):
     if USE_SUPABASE:
         rows = _rest("documents", params={"select": "*", "id": f"eq.{document_id}", "limit": 1})
         return rows[0] if rows else None
+
     conn = _sqlite()
     row = conn.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
     conn.close()
@@ -95,6 +98,7 @@ def upsert_documents(items):
             "content": item.get("content"),
             "fetched_at": now,
         })
+
     if not rows:
         return 0
 
@@ -118,12 +122,34 @@ def upsert_documents(items):
             ON CONFLICT(url) DO UPDATE SET title=excluded.title,
             published_at=excluded.published_at, content=excluded.content,
             fetched_at=excluded.fetched_at""",
-            (row["source"],row["title"],row["url"],row["published_at"],
-             row["summary"],row["content"],now))
+            (row["source"], row["title"], row["url"], row["published_at"],
+             row["summary"], row["content"], now))
     conn.commit()
     count = len(rows)
     conn.close()
     return count
+
+
+def cleanup_rbi_noise():
+    """Remove records created by the previous overly broad RBI link filter."""
+    if USE_SUPABASE:
+        _rest(
+            "documents",
+            method="DELETE",
+            params={
+                "source": "eq.RBI",
+                "url": "not.ilike.*BS_PressReleaseDisplay.aspx?prid=*",
+            },
+        )
+        return
+
+    conn = _sqlite()
+    conn.execute(
+        "DELETE FROM documents WHERE source = ? AND lower(url) NOT LIKE ?",
+        ("RBI", "%bs_pressreleasedisplay.aspx?prid=%"),
+    )
+    conn.commit()
+    conn.close()
 
 
 def update_analysis(document_id, result, provider):
@@ -138,6 +164,7 @@ def update_analysis(document_id, result, provider):
         "ai_provider": provider,
         "analyzed_at": analyzed_at,
     }
+
     if USE_SUPABASE:
         _rest("documents", method="PATCH", params={"id": f"eq.{document_id}"}, payload=values)
         return
@@ -159,10 +186,11 @@ def list_unanalyzed(limit=10):
             "order": "id.asc",
             "limit": limit,
         })
+
     conn = _sqlite()
     rows = conn.execute("""SELECT id,title,content FROM documents
         WHERE content IS NOT NULL AND length(content)>100
-        AND (summary IS NULL OR summary='') ORDER BY id ASC LIMIT ?""",(limit,)).fetchall()
+        AND (summary IS NULL OR summary='') ORDER BY id ASC LIMIT ?""", (limit,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -174,11 +202,14 @@ def save_ai_question(document_id, provider, question, answer):
         "question": question,
         "answer": answer if isinstance(answer, str) else str(answer),
     }
+
     if USE_SUPABASE:
         _rest("ai_questions", method="POST", payload=[value])
         return
+
     conn = _sqlite()
     conn.execute("""INSERT INTO ai_questions(document_id,provider,question,answer,created_at)
-        VALUES (?,?,?,?,?)""",(document_id,provider,question,value["answer"],datetime.now(timezone.utc).isoformat()))
+        VALUES (?,?,?,?,?)""",
+        (document_id, provider, question, value["answer"], datetime.now(timezone.utc).isoformat()))
     conn.commit()
     conn.close()
