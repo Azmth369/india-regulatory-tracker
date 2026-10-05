@@ -1,8 +1,9 @@
 import os
 import threading
 import time
+import secrets
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, Response
 
 from ai import AIError, AI_PROVIDER, ask_with_gemini, ask_with_sarvam, analyze_document
 from db import get_document, init_db, list_documents, save_ai_question, update_analysis
@@ -11,6 +12,30 @@ from worker import run_once
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
+
+TRACKER_USERNAME = os.getenv("TRACKER_USERNAME", "").strip()
+TRACKER_PASSWORD = os.getenv("TRACKER_PASSWORD", "")
+
+
+@app.before_request
+def personal_auth():
+    if request.path == "/health":
+        return None
+    if not TRACKER_USERNAME or not TRACKER_PASSWORD:
+        return None
+
+    auth = request.authorization
+    if (
+        not auth
+        or not secrets.compare_digest(auth.username or "", TRACKER_USERNAME)
+        or not secrets.compare_digest(auth.password or "", TRACKER_PASSWORD)
+    ):
+        return Response(
+            "Authentication required.",
+            401,
+            {"WWW-Authenticate": 'Basic realm="India Regulatory Tracker"'},
+        )
+    return None
 
 
 @app.route("/")
