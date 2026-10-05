@@ -1,6 +1,4 @@
 import re
-import sqlite3
-from datetime import datetime, timezone
 from urllib.parse import urljoin
 
 import requests
@@ -8,7 +6,8 @@ from bs4 import BeautifulSoup
 
 RBI_URL = "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx"
 HEADERS = {
-    "User-Agent": "IndiaRegulatoryTracker/0.2 (+https://github.com/Azmth369/india-regulatory-tracker)"
+    "User-Agent": "IndiaRegulatoryTracker/1.0 (+https://github.com/Azmth369/india-regulatory-tracker)",
+    "Accept": "text/html,application/xhtml+xml",
 }
 
 
@@ -33,14 +32,26 @@ def parse_publication_page(url):
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
-    for tag in soup(["script", "style", "noscript"]):
+    for tag in soup(["script", "style", "noscript", "nav", "footer"]):
         tag.decompose()
 
-    text = clean_text(soup.get_text(" ", strip=True))
+    main = (
+        soup.find("main")
+        or soup.find("div", id=re.compile("content", re.I))
+        or soup.body
+        or soup
+    )
+    text = clean_text(main.get_text(" ", strip=True))
+
     return {
         "published_at": extract_date(text),
-        "content": text[:12000],
+        "content": text[:16000],
     }
+
+
+def _is_press_release_link(href):
+    # Current RBI press-release entries use BS_PressReleaseDisplay.aspx?prid=...
+    return "rbi.org.in" in href.lower() and "bs_pressreleasedisplay.aspx?prid=" in href.lower()
 
 
 def scrape_rbi(limit=50):
@@ -49,19 +60,14 @@ def scrape_rbi(limit=50):
     soup = BeautifulSoup(response.text, "html.parser")
 
     items, seen = [], set()
+
     for link in soup.find_all("a", href=True):
         title = clean_text(link.get_text(" ", strip=True))
         href = urljoin(RBI_URL, link["href"])
 
         if not title or len(title) < 10 or href in seen:
             continue
-        if "rbi.org.in" not in href:
-            continue
-
-        lower = title.lower()
-        if not any(word in lower for word in (
-            "press release", "notification", "circular", "reserve bank"
-        )):
+        if not _is_press_release_link(href):
             continue
 
         seen.add(href)
@@ -75,8 +81,7 @@ def scrape_rbi(limit=50):
         }
 
         try:
-            page = parse_publication_page(href)
-            item.update(page)
+            item.update(parse_publication_page(href))
         except requests.RequestException:
             pass
 
@@ -88,5 +93,8 @@ def scrape_rbi(limit=50):
 
 
 def save_items(items, db_path=None):
-    from db import upsert_documents
-    return upsert_documents(items)
+    from db import cleanup_rbi_noise, upsert_documents
+
+    saved = upsert_documents(items)
+    cleanup_rbi_noise()
+    return saved
