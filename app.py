@@ -37,6 +37,9 @@ def init_db():
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(documents)")}
     if "content" not in columns:
         conn.execute("ALTER TABLE documents ADD COLUMN content TEXT")
+    for column in ("category", "importance", "affected_sectors", "market_impact", "action_required", "ai_provider", "analyzed_at"):
+        if column not in columns:
+            conn.execute(f"ALTER TABLE documents ADD COLUMN {column} TEXT")
     conn.commit()
     conn.close()
 
@@ -45,7 +48,7 @@ def init_db():
 def index():
     conn = get_db()
     rows = conn.execute("""
-        SELECT id, source, title, url, published_at, summary
+        SELECT id, source, title, url, published_at, summary, category, importance, affected_sectors, market_impact, action_required, ai_provider, analyzed_at
         FROM documents
         ORDER BY COALESCE(published_at, fetched_at) DESC
         LIMIT 100
@@ -64,7 +67,7 @@ def documents():
     limit = min(max(request.args.get("limit", 50, type=int), 1), 200)
     conn = get_db()
     rows = conn.execute("""
-        SELECT id, source, title, url, published_at, summary, fetched_at
+        SELECT id, source, title, url, published_at, summary, category, importance, affected_sectors, market_impact, action_required, ai_provider, analyzed_at, fetched_at
         FROM documents
         ORDER BY COALESCE(published_at, fetched_at) DESC
         LIMIT ?
@@ -93,15 +96,25 @@ def analyze(document_id):
         conn.close()
         return jsonify({"error": "document not found"}), 404
     try:
-        provider = request.args.get("provider") or request.json.get("provider") if request.is_json else request.args.get("provider")
+        provider = request.args.get("provider")
+        if not provider and request.is_json:
+            payload = request.get_json(silent=True) or {}
+            provider = payload.get("provider")
+        provider = (provider or os.getenv("AI_PROVIDER", "none")).lower()
         result = analyze_document(row["title"], row["content"], provider=provider)
         if result is None:
             conn.close()
-            return jsonify({"status": "skipped", "reason": "GEMINI_API_KEY not configured"})
-        conn.execute("UPDATE documents SET summary = ? WHERE id = ?", (result.get("summary"), document_id))
+            return jsonify({"status": "skipped", "reason": f"{provider} is not configured or no content is available"})
+        from datetime import datetime, timezone
+        conn.execute(
+            "UPDATE documents SET summary = ?, category = ?, importance = ?, affected_sectors = ?, market_impact = ?, action_required = ?, ai_provider = ?, analyzed_at = ? WHERE id = ?",
+            (result.get("summary"), result.get("category"), result.get("importance"),
+             ", ".join(result.get("affected_sectors", [])), result.get("market_impact"),
+             result.get("action_required"), provider, datetime.now(timezone.utc).isoformat(), document_id)
+        )
         conn.commit()
         conn.close()
-        return jsonify({"status": "ok", "document_id": document_id, "analysis": result})
+        return jsonify({"status": "ok", "document_id": document_id, "analysis": result, "provider": provider})
     except Exception as exc:
         conn.close()
         return jsonify({"status": "error", "error": str(exc)}), 500
