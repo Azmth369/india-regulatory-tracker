@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: india-regulatory-tracker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_PATH
+        value: /var/data/regulatory.db
+    disk:
+      name: regulatory-data
+      mountPath: /var/data
+      sizeGB: 1
