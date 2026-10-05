@@ -26,6 +26,9 @@
   <div><span class="muted">AI:</span> <select id="provider"><option value="none">No AI</option><option value="gemini">Gemini</option><option value="sarvam">Sarvam</option></select></div>
 </header>
 <div class="toolbar">
+  <button id="fetchBtn" onclick="fetchRbi()">↻ Fetch RBI Now</button>
+  <span id="fetchStatus" class="status"></span>
+
   <input id="search" placeholder="Search title, summary, category..." style="flex:1;min-width:220px">
   <select id="importance"><option value="">All importance</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>
   <select id="category"><option value="">All categories</option><option>Banking</option><option>Monetary Policy</option><option>Payments</option><option>NBFC</option><option>Forex</option><option>Markets</option><option>Consumer</option><option>Compliance</option><option>Other</option></select>
@@ -83,6 +86,20 @@ async function analyzeDoc(id,button){
     status.textContent=data.status==='ok'?'Saved. Refresh to see the analysis.':(data.reason||data.error||'Failed');
   }catch(e){status.textContent='Request failed';}
   finally{button.disabled=false;}
+}
+
+async function fetchRbi(){
+  const btn=document.getElementById('fetchBtn'), status=document.getElementById('fetchStatus');
+  btn.disabled=true; status.textContent='Fetching RBI...';
+  try{
+    const res=await fetch('/api/scrape/rbi',{method:'POST'});
+    const data=await res.json();
+    if(data.status==='ok'){
+      status.textContent=data.found+' found · '+data.saved+' saved/updated. Reloading...';
+      setTimeout(()=>location.reload(),900);
+    }else status.textContent=data.error||'Fetch failed';
+  }catch(e){status.textContent='Request failed';}
+  finally{btn.disabled=false;}
 }
 </script>
 </body>
