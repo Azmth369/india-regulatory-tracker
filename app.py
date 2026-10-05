@@ -120,6 +120,39 @@ def analyze(document_id):
         return jsonify({"status": "error", "error": str(exc)}), 500
 
 
+@app.post("/api/ask/<int:document_id>")
+def ask_ai(document_id):
+    conn = get_db()
+    row = conn.execute("SELECT title, content FROM documents WHERE id = ?", (document_id,)).fetchone()
+    conn.close()
+    if row is None:
+        return jsonify({"error": "document not found"}), 404
+    payload = request.get_json(silent=True) or {}
+    question = (payload.get("question") or "").strip()
+    provider = (payload.get("provider") or request.args.get("provider") or os.getenv("AI_PROVIDER", "none")).lower()
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+    if provider not in ("gemini", "sarvam"):
+        return jsonify({"error": "select Gemini or Sarvam"}), 400
+    prompt = f"""You are an Indian regulatory intelligence analyst.
+Answer the user question using ONLY the RBI publication below. If the publication does not contain enough information, say so clearly.
+
+Publication title: {row["title"]}
+Publication:
+{row["content"][:14000]}
+
+User question:
+{question}
+
+Give a concise, practical answer. Mention important dates, thresholds, entities or obligations when relevant.
+"""
+    try:
+        from ai import analyze_with_gemini, analyze_with_sarvam
+        result = analyze_with_gemini(prompt) if provider == "gemini" else analyze_with_sarvam(prompt)
+        return jsonify({"status": "ok", "provider": provider, "answer": result})
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 500
+
 @app.post("/api/scrape/rbi")
 def scrape_rbi_route():
     try:
