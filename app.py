@@ -3,6 +3,7 @@ import sqlite3
 from flask import Flask, jsonify, render_template, request
 
 from scraper import scrape_rbi, save_items
+from ai import analyze_document
 
 app = Flask(__name__)
 DB_PATH = os.getenv("DATABASE_PATH", "regulatory.db")
@@ -78,6 +79,27 @@ def document(document_id):
     if row is None:
         return jsonify({"error": "document not found"}), 404
     return jsonify(dict(row))
+
+
+@app.post("/api/analyze/<int:document_id>")
+def analyze(document_id):
+    conn = get_db()
+    row = conn.execute("SELECT title, content FROM documents WHERE id = ?", (document_id,)).fetchone()
+    if row is None:
+        conn.close()
+        return jsonify({"error": "document not found"}), 404
+    try:
+        result = analyze_document(row["title"], row["content"])
+        if result is None:
+            conn.close()
+            return jsonify({"status": "skipped", "reason": "GEMINI_API_KEY not configured"})
+        conn.execute("UPDATE documents SET summary = ? WHERE id = ?", (result.get("summary"), document_id))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok", "document_id": document_id, "analysis": result})
+    except Exception as exc:
+        conn.close()
+        return jsonify({"status": "error", "error": str(exc)}), 500
 
 
 @app.post("/api/scrape/rbi")
