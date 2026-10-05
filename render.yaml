@@ -12,6 +12,10 @@ services:
         value: https://tzrigywleqfrcsngnkbx.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: TRACKER_USERNAME
+        sync: false
+      - key: TRACKER_PASSWORD
+        sync: false
       - key: AI_PROVIDER
         value: none
       - key: GEMINI_MODEL
