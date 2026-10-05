@@ -99,12 +99,15 @@ def upsert_documents(items):
         return 0
 
     if USE_SUPABASE:
-        result = _rest(
-            "documents",
-            method="POST",
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/documents",
+            headers={**_headers(), "Prefer": "resolution=merge-duplicates,return=representation"},
             params={"on_conflict": "url"},
-            payload=rows,
+            json=rows,
+            timeout=30,
         )
+        response.raise_for_status()
+        result = response.json()
         return len(result)
 
     conn = _sqlite()
