@@ -1,9 +1,13 @@
 import os
 import sqlite3
+import threading
+import time
+
 from flask import Flask, jsonify, render_template, request
 
 from scraper import scrape_rbi, save_items
 from ai import analyze_document
+from worker import run_once
 
 app = Flask(__name__)
 DB_PATH = os.getenv("DATABASE_PATH", "regulatory.db")
@@ -113,7 +117,25 @@ def scrape_rbi_route():
         return jsonify({"status": "error", "error": str(exc)}), 500
 
 
+def start_scheduler():
+    if os.getenv("ENABLE_SCHEDULER", "true").lower() != "true":
+        return
+
+    def loop():
+        interval = int(os.getenv("SCRAPE_INTERVAL_SECONDS", "1800"))
+        time.sleep(10)
+        while True:
+            try:
+                run_once()
+            except Exception as exc:
+                print(f"Scheduler error: {exc}")
+            time.sleep(interval)
+
+    threading.Thread(target=loop, daemon=True, name="regulatory-scheduler").start()
+
+
 init_db()
+start_scheduler()
 
 
 if __name__ == "__main__":
