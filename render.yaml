@@ -8,8 +8,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: DATABASE_PATH
-        value: /var/data/regulatory.db
+      - key: SUPABASE_URL
+        value: https://tzrigywleqfrcsngnkbx.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: AI_PROVIDER
         value: none
       - key: GEMINI_MODEL
@@ -20,7 +22,3 @@ services:
         value: "true"
       - key: SCRAPE_INTERVAL_SECONDS
         value: "1800"
-    disk:
-      name: regulatory-data
-      mountPath: /var/data
-      sizeGB: 1
