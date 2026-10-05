@@ -87,28 +87,6 @@ def scrape_rbi(limit=50):
     return items
 
 
-def save_items(items, db_path):
-    now = datetime.now(timezone.utc).isoformat()
-    conn = sqlite3.connect(db_path)
-    inserted = 0
-
-    for item in items:
-        conn.execute("""
-            INSERT INTO documents
-                (source, title, url, published_at, summary, content, fetched_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(url) DO UPDATE SET
-                title=excluded.title,
-                published_at=excluded.published_at,
-                content=excluded.content,
-                fetched_at=excluded.fetched_at
-        """, (
-            item["source"], item["title"], item["url"],
-            item.get("published_at"), item.get("summary"),
-            item.get("content"), now,
-        ))
-        inserted += 1
-
-    conn.commit()
-    conn.close()
-    return inserted
+def save_items(items, db_path=None):
+    from db import upsert_documents
+    return upsert_documents(items)
