@@ -89,7 +89,8 @@ def analyze(document_id):
         conn.close()
         return jsonify({"error": "document not found"}), 404
     try:
-        result = analyze_document(row["title"], row["content"])
+        provider = request.args.get("provider") or request.json.get("provider") if request.is_json else request.args.get("provider")
+        result = analyze_document(row["title"], row["content"], provider=provider)
         if result is None:
             conn.close()
             return jsonify({"status": "skipped", "reason": "GEMINI_API_KEY not configured"})
