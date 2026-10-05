@@ -3,7 +3,7 @@ services:
     name: india-regulatory-tracker
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn --workers 1 --threads 4 app:app
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
