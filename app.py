@@ -1,12 +1,10 @@
 import os
 import sqlite3
-from datetime import datetime, timezone
 from flask import Flask, jsonify, render_template, request
 
 from scraper import scrape_rbi, save_items
 
 app = Flask(__name__)
-
 DB_PATH = os.getenv("DATABASE_PATH", "regulatory.db")
 
 
@@ -26,9 +24,14 @@ def init_db():
             url TEXT NOT NULL UNIQUE,
             published_at TEXT,
             summary TEXT,
+            content TEXT,
             fetched_at TEXT NOT NULL
         )
     """)
+    # Upgrade databases created by the first MVP.
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(documents)")}
+    if "content" not in columns:
+        conn.execute("ALTER TABLE documents ADD COLUMN content TEXT")
     conn.commit()
     conn.close()
 
@@ -65,16 +68,24 @@ def documents():
     return jsonify([dict(row) for row in rows])
 
 
+@app.get("/api/documents/<int:document_id>")
+def document(document_id):
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM documents WHERE id = ?", (document_id,)
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return jsonify({"error": "document not found"}), 404
+    return jsonify(dict(row))
+
+
 @app.post("/api/scrape/rbi")
 def scrape_rbi_route():
     try:
         items = scrape_rbi()
-        inserted = save_items(items, DB_PATH)
-        return jsonify({
-            "status": "ok",
-            "found": len(items),
-            "inserted": inserted
-        })
+        saved = save_items(items, DB_PATH)
+        return jsonify({"status": "ok", "found": len(items), "saved": saved})
     except Exception as exc:
         return jsonify({"status": "error", "error": str(exc)}), 500
 
