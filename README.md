@@ -5,12 +5,12 @@ Render-ready prototype for collecting Indian regulatory/public-sector updates.
 ## MVP
 
 - Flask web application
-- SQLite persistence
+- Supabase PostgreSQL persistence (SQLite fallback for local development)
 - RBI scraper with publication content extraction
 - Optional Gemini AI analysis
 - JSON API
 - Render deployment configuration
-- Persistent Render disk for SQLite data
+- Supabase database for persistent regulatory data
 
 ## Local run
 
@@ -62,3 +62,15 @@ Configure with:
 - `SCRAPE_INTERVAL_SECONDS=1800`
 
 For a production-scale deployment, this can later be moved to a dedicated job queue/database architecture.
+
+
+## Supabase
+
+The production app stores regulatory documents and AI Q&A history in the connected Supabase project.
+
+Render requires these environment variables:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only secret; never expose this in browser code
+
+The Supabase schema contains `documents` and `ai_questions`. Row Level Security is enabled, while the Render backend uses the server-only service-role key for database operations.
+
