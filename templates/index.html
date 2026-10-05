@@ -5,42 +5,85 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>India Regulatory Tracker</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 32px 20px; background: #f6f7f9; color: #17181a; }
-    header { margin-bottom: 24px; }
-    h1 { margin-bottom: 6px; }
-    .muted { color: #666; }
-    .card { background: white; border: 1px solid #ddd; border-radius: 12px; padding: 18px; margin: 12px 0; }
-    a { color: #1359c7; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .source { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #666; }
-    .empty { padding: 40px; text-align: center; background: white; border-radius: 12px; }
-    code { background: #eee; padding: 2px 5px; border-radius: 4px; }
+    body{font-family:system-ui,sans-serif;max-width:1180px;margin:0 auto;padding:28px 18px;background:#f5f6f8;color:#17181a}
+    header{display:flex;justify-content:space-between;gap:16px;align-items:end;flex-wrap:wrap;margin-bottom:20px}
+    h1{margin:0 0 5px}.muted{color:#68707a}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+    input,select,button{padding:10px 12px;border:1px solid #ccd1d7;border-radius:8px;background:white;font:inherit}
+    button{cursor:pointer}.card{background:white;border:1px solid #dde1e6;border-radius:12px;padding:18px;margin:12px 0}
+    .source{font-size:11px;font-weight:800;color:#68707a;text-transform:uppercase;letter-spacing:.05em}
+    h2{font-size:18px;margin:7px 0}.title{color:#1359c7;text-decoration:none}.title:hover{text-decoration:underline}
+    .chips{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.chip{font-size:12px;padding:4px 8px;border-radius:999px;background:#eef0f3}
+    .high{background:#ffe7e7}.critical{background:#ffd4d4}.medium{background:#fff1d6}.low{background:#e9f6eb}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.box{padding:12px;background:#f8f9fa;border-radius:9px}
+    .box b{display:block;font-size:12px;margin-bottom:5px}.actions{display:flex;gap:8px;align-items:center;margin-top:12px}
+    .status{font-size:12px}.empty{padding:40px;text-align:center;background:white;border-radius:12px}
+    @media(max-width:700px){.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <header>
-    <h1>India Regulatory Tracker</h1>
-    <div class="muted">Prototype — currently collecting RBI publications.</div>
-  </header>
+<header>
+  <div><h1>India Regulatory Tracker</h1><div class="muted">RBI regulatory intelligence prototype</div></div>
+  <div><span class="muted">AI:</span> <select id="provider"><option value="none">No AI</option><option value="gemini">Gemini</option><option value="sarvam">Sarvam</option></select></div>
+</header>
+<div class="toolbar">
+  <input id="search" placeholder="Search title, summary, category..." style="flex:1;min-width:220px">
+  <select id="importance"><option value="">All importance</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>
+  <select id="category"><option value="">All categories</option><option>Banking</option><option>Monetary Policy</option><option>Payments</option><option>NBFC</option><option>Forex</option><option>Markets</option><option>Consumer</option><option>Compliance</option><option>Other</option></select>
+</div>
 
-  {% if documents %}
-    {% for doc in documents %}
-      <article class="card">
-        <div class="source">{{ doc["source"] }}</div>
-        <h2><a href="{{ doc["url"] }}" target="_blank" rel="noopener">{{ doc["title"] }}</a></h2>
-        {% if doc["published_at"] %}
-          <div class="muted">{{ doc["published_at"] }}</div>
-        {% endif %}
-        {% if doc["summary"] %}
-          <p>{{ doc["summary"] }}</p>
-        {% endif %}
-      </article>
-    {% endfor %}
-  {% else %}
-    <div class="empty">
-      <strong>No documents collected yet.</strong>
-      <p>Call <code>POST /api/scrape/rbi</code> once to populate the database.</p>
-    </div>
-  {% endif %}
+{% if documents %}
+  <div id="documents">
+  {% for doc in documents %}
+    <article class="card" data-search="{{ (doc['title'] ~ ' ' ~ (doc['summary'] or '') ~ ' ' ~ (doc['category'] or ''))|lower }}" data-importance="{{ doc['importance'] or '' }}" data-category="{{ doc['category'] or '' }}">
+      <div class="source">{{ doc['source'] }}{% if doc['published_at'] %} · {{ doc['published_at'] }}{% endif %}</div>
+      <h2><a class="title" href="{{ doc['url'] }}" target="_blank" rel="noopener">{{ doc['title'] }}</a></h2>
+      <div class="chips">
+        {% if doc['importance'] %}<span class="chip {{ doc['importance']|lower }}">{{ doc['importance'] }}</span>{% endif %}
+        {% if doc['category'] %}<span class="chip">{{ doc['category'] }}</span>{% endif %}
+        {% if doc['ai_provider'] %}<span class="chip">AI: {{ doc['ai_provider'] }}</span>{% endif %}
+      </div>
+      {% if doc['summary'] %}<p>{{ doc['summary'] }}</p>{% endif %}
+      {% if doc['market_impact'] or doc['action_required'] %}
+      <div class="grid">
+        {% if doc['market_impact'] %}<div class="box"><b>Market impact</b>{{ doc['market_impact'] }}</div>{% endif %}
+        {% if doc['action_required'] %}<div class="box"><b>Action</b>{{ doc['action_required'] }}</div>{% endif %}
+      </div>
+      {% endif %}
+      <div class="actions">
+        <button onclick="analyzeDoc({{ doc['id'] }}, this)">Analyze</button>
+        <span class="status" id="status-{{ doc['id'] }}"></span>
+      </div>
+    </article>
+  {% endfor %}
+  </div>
+{% else %}
+  <div class="empty"><strong>No documents collected yet.</strong><p>The scheduler will populate RBI publications automatically.</p></div>
+{% endif %}
+
+<script>
+const search=document.getElementById('search');
+const importance=document.getElementById('importance');
+const category=document.getElementById('category');
+function filterDocs(){
+  const q=search.value.toLowerCase(), imp=importance.value, cat=category.value;
+  document.querySelectorAll('.card').forEach(card=>{
+    const ok=(!q||card.dataset.search.includes(q))&&(!imp||card.dataset.importance===imp)&&(!cat||card.dataset.category===cat);
+    card.style.display=ok?'block':'none';
+  });
+}
+[search,importance,category].forEach(x=>x.addEventListener('input',filterDocs));
+async function analyzeDoc(id,button){
+  const provider=document.getElementById('provider').value;
+  const status=document.getElementById('status-'+id);
+  if(provider==='none'){status.textContent='Select Gemini or Sarvam first.';return;}
+  button.disabled=true; status.textContent='Analyzing...';
+  try{
+    const res=await fetch('/api/analyze/'+id+'?provider='+encodeURIComponent(provider),{method:'POST'});
+    const data=await res.json();
+    status.textContent=data.status==='ok'?'Saved. Refresh to see the analysis.':(data.reason||data.error||'Failed');
+  }catch(e){status.textContent='Request failed';}
+  finally{button.disabled=false;}
+}
+</script>
 </body>
 </html>
