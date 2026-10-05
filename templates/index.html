@@ -101,6 +101,23 @@ async function fetchRbi(){
   }catch(e){status.textContent='Request failed';}
   finally{btn.disabled=false;}
 }
+async function askDoc(id,button){
+  const provider=document.getElementById("provider").value;
+  const input=document.getElementById("q-"+id), status=document.getElementById("status-"+id);
+  const question=input.value.trim();
+  if(provider==="none"){status.textContent="Select Gemini or Sarvam first.";return;}
+  if(!question){status.textContent="Enter a question.";return;}
+  button.disabled=true; status.textContent="Thinking...";
+  try{
+    const res=await fetch("/api/ask/"+id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,question})});
+    const data=await res.json();
+    if(data.status==="ok"){
+      const answer=typeof data.answer==="string"?data.answer:JSON.stringify(data.answer);
+      status.textContent=answer;
+    }else status.textContent=data.error||"AI request failed";
+  }catch(e){status.textContent="Request failed";}
+  finally{button.disabled=false;}
+}
 </script>
 </body>
 </html>
